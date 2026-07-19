@@ -8,7 +8,7 @@ from rank_bm25 import BM25Okapi
 import pickle
 import json
 import numpy
-from transformers import AutoTokenizer, Autollm
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 
 
@@ -169,11 +169,11 @@ def build_bm_obj_and_list(chunks):
 
 
 def load_bm25_obj():
-    with open("/home/hamza-el-achhab/Desktop/rcd/BM25.pkl", "rb") as f:
+    with open("/home/hel-achh/goinfre/rcd/BM25.pkl", "rb") as f:
         data = f.read()
         bm25_o = pickle.loads(data)
 
-    with open("/home/hamza-el-achhab/Desktop/rcd/chunks.json", "r") as f:
+    with open("/home/hel-achh/goinfre/rcd/chunks.json", "r") as f:
         data = f.read()
         lst_of_objs = json.loads(data)
 
@@ -193,17 +193,55 @@ def retrive(query, bm25, lst, k):
     return res
 
 
-def generate_answer() -> str:
+
+def merge_data(lst):
+    res = ""
+
+    for dct in lst:
+        res += dct["content"]
+        res += "\n"
+    
+    return res
+
+
+
+
+def generate_answer(question, fully_prompt, max_new=100) -> str:
+    
+    TOKENIZER = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
+    MODEL_OBJ = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-0.6B")
+
+    inputs = TOKENIZER(fully_prompt, return_tensors="pt")
 
 
 
 
 
-build_bm_obj_and_list(chunking_data("/home/hamza-el-achhab/Desktop/rcd/vllm-0.10.1"))
+question = "what is chat gpt ?"
+
+
+build_bm_obj_and_list(chunking_data("/home/hel-achh/goinfre/rcd/vllm-0.10.1"))
 bm25, list_ob_objs = load_bm25_obj()
-retrived_data = retrive("chat gpt", bm25, list_ob_objs, 10)
+retrived_data = retrive(question, bm25, list_ob_objs, 10)
+merged_data = merge_data(retrived_data)
 
-for dct in retrived_data:
-    print(dct["content"])
-    print("="*30)
+
+fully_prompt = f"""
+the content is :
+{merged_data}
+
+
+base on these privouse data answer on this question
+
+QUESTION: {question}
+
+ANSWER:
+
+"""
+
+answer = generate_answer(question, fully_prompt)
+print(answer)
+
+
+
 

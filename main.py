@@ -3,6 +3,12 @@ import os
 import sys
 import re
 from pydantic import BaseModel
+from tqdm import tqdm
+from rank_bm25 import BM25Okapi
+import pickle
+import json
+import numpy
+from transformers import AutoTokenizer, Autollm
 
 
 
@@ -52,11 +58,11 @@ def offset_lines(lst):
     res = [0]
     for ele in lst:
         res.append(res[-1] + len(ele) + 1)
-
     return res
 
 
 def chunking_code(path, content):
+    res = []
 
     tree = ast.parse(content)
     top_nodes = []
@@ -68,7 +74,28 @@ def chunking_code(path, content):
     lines = content.split("\n")
     offsets = offset_lines(lines)
 
-    
+    for node in top_nodes:
+        start_line = node.lineno - 1
+        end_line = node.end_lineno
+
+        start_indx = offsets[start_line]
+        end_indx = offsets[end_line]
+
+        data = content[start_indx:end_indx]
+
+        obj = Chunk(file_name=path, start=start_indx, end=end_indx, content=data, typee="code")
+        res.append(obj)
+
+    return res
+
+        
+        
+
+
+
+
+
+
 
     
 
@@ -88,7 +115,7 @@ def chunking_data(repo_path):
         print("Error")
         return []
 
-    for root, folder, files in os.walk(repo_path):
+    for root, folder, files in tqdm(os.walk(repo_path), desc="fd"):
         for file in files:
             try:
                 current_extention = file.split(".")[1]
@@ -107,7 +134,7 @@ def chunking_data(repo_path):
                 with open(full_path, "r") as f:
                     content = f.read()
                     lst = chunking_code(full_path, content)
-                    # res.extend(lst)
+                    res.extend(lst)
 
 
     return res
@@ -115,14 +142,68 @@ def chunking_data(repo_path):
 
 
 
-            
+def tokenizer(text):
+    text = text.lower()
+    return text.split(" ")
+
+
+def build_bm_obj_and_list(chunks):
+    matrix = []
+
+    for obj in tqdm(chunks, desc="building"):
+        matrix.append(tokenizer(obj.content))
+
+    bm25_obj = BM25Okapi(matrix)
+    binarries = pickle.dumps(bm25_obj)
+    with open("BM25.pkl", "wb") as f:
+        f.write(binarries)
+
+    data = []
+    for obj in chunks:
+        data.append(obj.model_dump())
+    with open("chunks.json", "w") as f:
+        f.write(json.dumps(data, indent=2))
+
+    print("BM25 and CHUNK lists are saved.")
 
 
 
-r = chunking_data("/home/hamza-el-achhab/Desktop/rcd/vllm-0.10.1")
+def load_bm25_obj():
+    with open("/home/hamza-el-achhab/Desktop/rcd/BM25.pkl", "rb") as f:
+        data = f.read()
+        bm25_o = pickle.loads(data)
 
-# for c in r:
-#     print(c.content)
-#     print("*"*30)
-#     print(len(c.content))
-#     print("*"*30)
+    with open("/home/hamza-el-achhab/Desktop/rcd/chunks.json", "r") as f:
+        data = f.read()
+        lst_of_objs = json.loads(data)
+
+    return bm25_o, lst_of_objs
+
+    
+def retrive(query, bm25, lst, k):
+    query_tokened = tokenizer(query)
+
+    scores = bm25.get_scores(query_tokened)
+    best_k_indexes = numpy.argsort(scores)[::-1][:k]
+
+    res = []
+    for idx in best_k_indexes:
+        res.append(lst[idx])
+
+    return res
+
+
+def generate_answer() -> str:
+
+
+
+
+
+build_bm_obj_and_list(chunking_data("/home/hamza-el-achhab/Desktop/rcd/vllm-0.10.1"))
+bm25, list_ob_objs = load_bm25_obj()
+retrived_data = retrive("chat gpt", bm25, list_ob_objs, 10)
+
+for dct in retrived_data:
+    print(dct["content"])
+    print("="*30)
+

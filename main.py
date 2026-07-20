@@ -1,3 +1,5 @@
+
+
 import ast
 import os
 import sys
@@ -88,14 +90,6 @@ def chunking_code(path, content):
 
     return res
 
-        
-        
-
-
-
-
-
-
 
     
 
@@ -169,11 +163,11 @@ def build_bm_obj_and_list(chunks):
 
 
 def load_bm25_obj():
-    with open("/home/hamza-el-achhab/Desktop/rcd/BM25.pkl", "rb") as f:
+    with open("/home/hel-achh/goinfre/rcd/BM25.pkl", "rb") as f:
         data = f.read()
         bm25_o = pickle.loads(data)
 
-    with open("/home/hamza-el-achhab/Desktop/rcd/chunks.json", "r") as f:
+    with open("/home/hel-achh/goinfre/rcd/chunks.json", "r") as f:
         data = f.read()
         lst_of_objs = json.loads(data)
 
@@ -204,7 +198,7 @@ def merge_data(lst):
 
 
 
-def generate_answer(fully_prompt, max_new=100) -> str:
+def generate_answer(fully_prompt, max_new=60) -> str:
     
     TOKENIZER = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
     MODEL_OBJ = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-0.6B")
@@ -212,7 +206,12 @@ def generate_answer(fully_prompt, max_new=100) -> str:
     inputs = TOKENIZER(fully_prompt, return_tensors="pt")
     outputs = MODEL_OBJ.generate(**inputs, max_new_tokens=max_new)
 
-    print(inputs)
+    length_of_prompt = len(inputs['input_ids'][0].tolist())
+    ids = (outputs[0].tolist())
+    ids = ids[length_of_prompt:]
+
+    answer = TOKENIZER.decode(ids)
+    return answer
 
 
 
@@ -220,14 +219,12 @@ def generate_answer(fully_prompt, max_new=100) -> str:
 
 
 
+question = "What are the default values for FP8_MIN and FP8_MAX constants in vLLM's triton_flash_attention module?"
 
 
-question = "what is chat gpt ?"
-
-
-build_bm_obj_and_list(chunking_data("/home/hamza-el-achhab/Desktop/rcd/vllm-0.10.1"))
+build_bm_obj_and_list(chunking_data("/home/hel-achh/goinfre/rcd/vllm-0.10.1"))
 bm25, list_ob_objs = load_bm25_obj()
-retrived_data = retrive(question, bm25, list_ob_objs, 10)
+retrived_data = retrive(question, bm25, list_ob_objs, 5)
 merged_data = merge_data(retrived_data)
 
 
@@ -245,7 +242,3 @@ ANSWER:
 
 answer = generate_answer(fully_prompt)
 print(answer)
-
-
-
-
